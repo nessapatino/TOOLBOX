@@ -331,3 +331,69 @@ def plot_features_cat_regression(df, target_col, columns=[], pvalue=0.05, with_i
                 plt.show()
 
     return significant_cols
+"""
+### Funcion: get_features_num_classification
+
+Esta función recibe como argumentos un dataframe, el nombre de una de las columnas del mismo (argumento 'target_col'),
+ que debería ser el target de un hipotético modelo de clasificación, es decir debe ser una variable categórica o discreta pero con baja cardinalidad,
+   además de un argumento float "pvalue" cuyo valor debe ser por defecto 0.05.
+
+La función debe devolver una lista con las columnas numéricas del dataframe cuyo ANOVA con la columna designada por "target_col" 
+supere el test de hipótesis con significación mayor o igual a 1-pvalue.
+
+La función debe hacer todas las comprobaciones necesarias para no dar error como consecuecia de los valores de entrada.
+ Es decir hará un check de los valores asignados a los argumentos de entrada y si estos no son adecuados 
+ debe retornar None y printar por pantalla la razón de este comportamiento. Ojo entre las comprobaciones 
+ debe estar que "target_col" hace referencia a una variable categórica del dataframe.
+"""
+
+def get_features_num_classification(df, target_col, pvalue = 0.05):
+    def is_discrete_numeric(series):
+        unique_values = series.unique()
+        num_unique_values = len(unique_values)
+    
+    # Consideramos que es discreta si tiene menos de 10 valores únicos y si es numérica
+        return num_unique_values <= 10 and pd.api.types.is_numeric_dtype(series)
+    
+    # Comprobar si el dataframe es de tipo DataFrame de pandas
+    if not isinstance(df, pd.DataFrame):
+        print("Error: El argumento 'dataframe' no es un DataFrame de pandas.")
+        return None
+    
+    # Comprobar si target_col es una columna del dataframe
+    if target_col not in df.columns:
+        print("Error: 'target_col' no es una columna válida del dataframe.")
+        return None
+    
+    if not is_discrete_numeric(df[target_col]):
+        print("Error: 'target_col' no es una variable numérica discreta.")
+        return None
+    
+    cardinality = df[target_col].nunique()
+    if cardinality > 0.1 * len(df):
+        print("Error: 'target_col' no tiene una baja cardinalidad.")
+        return None
+    
+    # Comprobar si pvalue es un valor float
+    if not isinstance(pvalue, float):
+        print("Error: El argumento 'pvalue' debe ser un valor float.")
+        return None
+    
+    # Comprobar si pvalue está en el rango válido (0, 1)
+    if not (0 < pvalue < 1):
+        print("Error: El valor de 'pvalue' debe estar en el rango (0, 1).")
+        return None
+    
+    # Obtener las columnas numéricas del dataframe
+    numeric_columns = df.select_dtypes(include=['number']).columns
+    
+    # Realizar el test ANOVA para cada columna numérica
+    significant_features = []
+    for col in numeric_columns:
+        p_val = f_oneway(df[col], df[target_col])[1]
+        if p_val >= (1 - pvalue):
+            significant_features.append(col)
+    
+    return significant_features
+
+
