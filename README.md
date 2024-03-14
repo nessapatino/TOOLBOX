@@ -25,11 +25,19 @@ El toolbox ofrece una serie de funciones que abordan diferentes aspectos del pro
 
 - Selección de tipos de variables: Permite sugerir el tipo de variable para cada columna del dataframe, considerando la cardinalidad y otros criterios definidos por el usuario.
 
-- Selección de features numéricas para regresión: Identifica las columnas numéricas del dataframe que tienen una correlación significativa con una columna designada como el objetivo de un modelo de regresión, con la opción de considerar un umbral de correlación y un valor de p-value para el test de hipótesis.
+- Selección de features numéricas para modelos de regresión: Identifica las columnas numéricas del dataframe que tienen una correlación significativa con una columna designada como el objetivo de un modelo de regresión, con la opción de considerar un umbral de correlación y un valor de p-value para el test de hipótesis.
 
-- Selección de features categóricas para regresión: Encuentra las columnas categóricas del dataframe que tienen una relación significativa con una columna designada como el objetivo de un modelo de regresión, con la opción de especificar un valor de p-value para el test de hipótesis.
+- Selección de features categóricas para modelos de regresión: Encuentra las columnas categóricas del dataframe que tienen una relación significativa con una columna designada como el objetivo de un modelo de regresión, con la opción de especificar un valor de p-value para el test de hipótesis.
 
-- Visualización de relaciones: Genera visualizaciones como pairplots y histogramas agrupados para explorar las relaciones entre features y el target en problemas de regresión.
+- Visualización para modelos de regresión: Genera visualizaciones como pairplots y histogramas agrupados para explorar las relaciones entre features y el target en problemas de regresión.
+
+- eval_model: Evalúa el rendimiento de modelos de Machine Learning. Para regresión, calcula y muestra RMSE, MAE, MAPE, y genera gráficos comparativos. Para clasificación, calcula precisión, recall, accuracy, y muestra informes de clasificación y matrices de confusión. Devuelve las métricas en una tupla.
+
+- Selección de features númericas para modelos de clasificación: Identifica columnas numéricas en un dataframe que son estadísticamente significativas para un target de clasificación, basándose en un valor p de ANOVA.
+
+- Selección de features categóricas para modelos de clasificación: Selecciona columnas categóricas en un dataframe que tengan una Mutual information significativa con un target de clasificación, normalizada o no.
+
+- Visualización para modelos de clasificación: : Genera pairplots para columnas numéricas seleccionadas en un dataframe, basadas en su significancia estadística con respecto a un target y crea visualizaciones de la distribución de etiquetas de columnas categóricas seleccionadas en relación con un target de clasificación.
 
 
 ## Contribuidores
