@@ -3,9 +3,14 @@ import pandas as pd
 import seaborn as sns
 import numpy as np
 from scipy import stats
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, f_oneway
 from statsmodels.stats.proportion import proportions_ztest
-
+from sklearn.preprocessing import OrdinalEncoder, StandardScaler
+from sklearn.tree import DecisionTreeClassifier,DecisionTreeRegressor
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
+from sklearn.metrics import accuracy_score, precision_score, recall_score, classification_report, confusion_matrix, ConfusionMatrixDisplay
 
 def tipifica_variables(df, umbral_categorica, umbral_continua):
     """
@@ -331,30 +336,130 @@ def plot_features_cat_regression(df, target_col, columns=[], pvalue=0.05, with_i
                 plt.show()
 
     return significant_cols
-"""
-### Funcion: get_features_num_classification
 
-Esta función recibe como argumentos un dataframe, el nombre de una de las columnas del mismo (argumento 'target_col'),
- que debería ser el target de un hipotético modelo de clasificación, es decir debe ser una variable categórica o discreta pero con baja cardinalidad,
-   además de un argumento float "pvalue" cuyo valor debe ser por defecto 0.05.
+def eval_model(target, predictions, problem_type, metrics):
+    '''
+    Evalúa el rendimiento de un modelo de machine learning, ya sea de regresión o clasificación, basándose en una lista de métricas específicas.
 
-La función debe devolver una lista con las columnas numéricas del dataframe cuyo ANOVA con la columna designada por "target_col" 
-supere el test de hipótesis con significación mayor o igual a 1-pvalue.
+    Argumentos:
+    target (array-like): Valores verdaderos del conjunto de datos.
+    predictions (array-like): Predicciones generadas por el modelo.
+    problem_type (str): Tipo de problema, 'regresión' o 'clasificación'.
+    metrics (list of str): Lista de etiquetas de métricas para evaluar. Las métricas válidas para regresión incluyen 'RMSE', 'MAE', 'MAPE', 'GRAPH'. 
+    Para clasificación, las métricas incluyen 'ACCURACY', 'PRECISION', 'RECALL', 'CLASS_REPORT', 'MATRIX', 'MATRIX_RECALL', 'MATRIX_PRED', 
+    'PRECISION_X', 'RECALL_X', donde 'X' es una etiqueta de clase específica.
 
-La función debe hacer todas las comprobaciones necesarias para no dar error como consecuecia de los valores de entrada.
- Es decir hará un check de los valores asignados a los argumentos de entrada y si estos no son adecuados 
- debe retornar None y printar por pantalla la razón de este comportamiento. Ojo entre las comprobaciones 
- debe estar que "target_col" hace referencia a una variable categórica del dataframe.
-"""
+    Retorna:
+    tupla: Una tupla que contiene los resultados de las métricas evaluadas en el orden en que se especificaron en el argumento `metrics`.
 
-def get_features_num_classification(df, target_col, pvalue = 0.05):
-    def is_discrete_numeric(series):
-        unique_values = series.unique()
-        num_unique_values = len(unique_values)
+    Levanta:
+    ValueError: Si el cálculo de 'MAPE' falla debido a valores de target con cero.
+
+    Nota:
+    La métrica 'GRAPH' muestra un gráfico pero no retorna un valor numérico, por lo tanto, no se incluye en la tupla de retorno.
+    Las métricas 'PRECISION_X' y 'RECALL_X' requieren que 'X' sea reemplazado por la etiqueta específica de la clase a evaluar.
+    '''
+    results = []
+
+    if problem_type == 'regresión':
+        for metric in metrics:
+            if metric == 'RMSE':
+                rmse = np.sqrt(mean_squared_error(target, predictions))
+                print(f'RMSE: {rmse}')
+                results.append(rmse)
+            elif metric == 'MAE':
+                mae = mean_absolute_error(target, predictions)
+                print(f'MAE: {mae}')
+                results.append(mae)
+            elif metric == 'MAPE':
+                try:
+                    mape = mean_absolute_percentage_error(target, predictions)
+                    print(f'MAPE: {mape}')
+                    results.append(mape)
+                except ValueError as e:
+                    print("Error al calcular MAPE:", e)
+                    raise
+            elif metric == 'GRAPH':
+                plt.scatter(target, predictions)
+                plt.xlabel('True Values')
+                plt.ylabel('Predictions')
+                plt.title('Comparison of True Values vs Predictions')
+                plt.show()
+                
+    elif problem_type == 'clasificación':
+        for metric in metrics:
+            if metric == 'ACCURACY':
+                accuracy = accuracy_score(target, predictions)
+                print(f'Accuracy: {accuracy}')
+                results.append(accuracy)
+            elif metric.startswith('PRECISION_'):
+                class_label = metric.split('_')[1]
+                precision = precision_score(target, predictions, labels=[class_label], average=None)
+                print(f'Precision for {class_label}: {precision[0]}')
+                results.append(precision[0])
+            elif metric.startswith('RECALL_'):
+                class_label = metric.split('_')[1]
+                recall = recall_score(target, predictions, labels=[class_label], average=None)
+                print(f'Recall for {class_label}: {recall[0]}')
+                results.append(recall[0])
+            elif metric == 'PRECISION':
+                precision = precision_score(target, predictions, average='macro')
+                print(f'Precision: {precision}')
+                results.append(precision)
+            elif metric == 'RECALL':
+                recall = recall_score(target, predictions, average='macro')
+                print(f'Recall: {recall}')
+                results.append(recall)
+            elif metric == 'CLASS_REPORT':
+                print(classification_report(target, predictions))
+            elif metric == 'MATRIX':
+                cm = confusion_matrix(target, predictions)
+                ConfusionMatrixDisplay(cm).plot()
+                plt.show()
+            elif metric == 'MATRIX_RECALL':
+                cm = confusion_matrix(target, predictions, normalize='true')
+                ConfusionMatrixDisplay(cm).plot()
+                plt.show()
+            elif metric == 'MATRIX_PRED':
+                cm = confusion_matrix(target, predictions, normalize='pred')
+                ConfusionMatrixDisplay(cm).plot()
+                plt.show()
     
-    # Consideramos que es discreta si tiene menos de 10 valores únicos y si es numérica
-        return num_unique_values <= 10 and pd.api.types.is_numeric_dtype(series)
+    return tuple(results)
+
+
+def is_discrete_numeric(series):
+    """
+    Determina si una Serie de pandas es numérica discreta.
+
+    Argumentos:
+    series (pandas.Series): Una Serie de pandas a ser verificada.
+
+    Retorna:
+    bool: True si la serie es numérica discreta (tiene <= 15 valores únicos y es numérica), False de lo contrario.
+    """
+    unique_values = series.unique()
+    num_unique_values = len(unique_values)
+    return num_unique_values <= 15 and pd.api.types.is_numeric_dtype(series)
+
+
+def get_features_num_classification(df, target_col, pvalue=0.05):
+    """
+    Identifica columnas númericas en un DataFrame que tienen una relación estadísticamente significativa
+    con una columna objetivo categórica, utilizando un test de ANOVA.
+
+    Argumentos:
+    df (pandas.DataFrame): El DataFrame de pandas que contiene el conjunto de datos.
+    target_col (str): El nombre de la columna objetivo para clasificación.
+    pvalue (float, opcional): El nivel de significancia para la selección de características. El valor predeterminado es 0.05.
+
+    Retorna:
+    Una lista de nombres de columna que representan características significativas para clasificación,
+    según el test de ANOVA, donde la columna es numérica y su ANOVA con la columna designada por "target_col"
+    supera el test de hipótesis con una significancia mayor o igual a 1-pvalue.
+    """
     
+def get_features_num_classification(df, target_col, pvalue=0.05):
     # Comprobar si el dataframe es de tipo DataFrame de pandas
     if not isinstance(df, pd.DataFrame):
         print("Error: El argumento 'dataframe' no es un DataFrame de pandas.")
@@ -365,13 +470,17 @@ def get_features_num_classification(df, target_col, pvalue = 0.05):
         print("Error: 'target_col' no es una columna válida del dataframe.")
         return None
     
-    if not is_discrete_numeric(df[target_col]):
-        print("Error: 'target_col' no es una variable numérica discreta.")
-        return None
+    # Codificar target_col si es categórica
+    if not pd.api.types.is_numeric_dtype(df[target_col]):
+        ordinal_encoder = OrdinalEncoder()
+        df_encoded = df.copy()
+        df_encoded[target_col] = ordinal_encoder.fit_transform(df[[target_col]])
+    else:
+        df_encoded = df
     
-    cardinality = df[target_col].nunique()
-    if cardinality > 0.1 * len(df):
-        print("Error: 'target_col' no tiene una baja cardinalidad.")
+    # Comprueba valores nulos en el DataFrame
+    if df_encoded.isnull().any().any():
+        print("Error: El DataFrame contiene valores nulos. Imputa o elimina los valores nulos antes de continuar.")
         return None
     
     # Comprobar si pvalue es un valor float
@@ -380,20 +489,148 @@ def get_features_num_classification(df, target_col, pvalue = 0.05):
         return None
     
     # Comprobar si pvalue está en el rango válido (0, 1)
-    if not (0 < pvalue < 1):
+    if not (0 < pvalue < 1.0):
         print("Error: El valor de 'pvalue' debe estar en el rango (0, 1).")
         return None
     
+    # Si target_col es numérica, comprobar si es discreta y tiene baja cardinalidad
+    if pd.api.types.is_numeric_dtype(df_encoded[target_col]):
+        if not is_discrete_numeric(df_encoded[target_col]):
+            print("Error: 'target_col' no es una variable numérica discreta.")
+            return None
+        
+        cardinality = df_encoded[target_col].nunique()
+        if cardinality > 0.1 * len(df_encoded):
+            print("Error: 'target_col' no tiene una baja cardinalidad.")
+            return None
+    
     # Obtener las columnas numéricas del dataframe
-    numeric_columns = df.select_dtypes(include=['number']).columns
+    numeric_columns = df_encoded.select_dtypes(exclude=object).columns
     
-    # Realizar el test ANOVA para cada columna numérica
-    significant_features = []
-    for col in numeric_columns:
-        p_val = f_oneway(df[col], df[target_col])[1]
-        if p_val >= (1 - pvalue):
-            significant_features.append(col)
-    
-    return significant_features
+    columnas_significativas = []
+    columnas_no_significativas = []
 
+    for col in numeric_columns:
+        if col != target_col:
+            groups = [group[col].dropna() for name, group in df.groupby(target_col)]
+            f_value, p_valor = f_oneway(*groups)
+            if p_valor <= pvalue:
+                columnas_significativas.append(col)
+            else:
+                columnas_no_significativas.append(col)
+    
+    if columnas_no_significativas:
+        print("Las siguientes columnas no pasaron el test de significancia:")
+        print(columnas_no_significativas)
+
+    else:
+        print("Todas las columnas pasaron el test de significancia.")
+    
+    print("\n Las siguientes columnas pasaron el test de significancia:")
+
+    return columnas_significativas
+       
+    
+
+def plot_features_cat_classification(df, target_col="", columns=[], pvalue=0.05):
+
+    """
+    Genera pairplots para visualizar la relación entre variables numéricas en un DataFrame, 
+    segmentadas por valores únicos de una columna target que tienen una relación estadísticamente significativa 
+    utilizando un test de ANOVA.
+
+    Argumentos:
+    - df (pandas.DataFrame): El DataFrame que contiene los datos.
+    - target_col (str): La columna que se utilizará para segmentar los datos en los pairplots. 
+      Debe ser una columna del DataFrame df. Por defecto es una cadena vacía, lo que significa que no se realizará segmentación.
+    - columns (list): Una lista de columnas del DataFrame df que se utilizarán en los pairplots. 
+      Por defecto es una lista vacía, lo que significa que se utilizarán todas las columnas numéricas del DataFrame.
+    - pvalue (float): El valor de p a utilizar para determinar la significancia de las variables numéricas en relación con target_col. 
+      Por defecto es 0.05.
+
+    Retorna:
+    - Pairplots de acuerdo a las especificaciones anteriores
+    - Columnas_significativas (list): Una lista de columnas numéricas significativas en relación con target_col, 
+      de acuerdo con el valor de p especificado.
+    
+
+    Nota:
+    - Si el número de valores únicos en target_col es mayor que 5, los pairplots se dividirán en múltiples subgráficos 
+      segmentados por los valores únicos de target_col.
+    - Se asume que la función get_features_num_classification está definida en otro lugar y devuelve las características numéricas 
+      significativas en relación con target_col con un valor de p especificado.
+
+    Raises:
+    - TypeError: Si el argumento df no es un DataFrame de pandas.
+    - ValueError: Si target_col no es una columna válida del DataFrame df, o si una o más columnas especificadas en columns 
+      no están presentes en el DataFrame df, o si el argumento pvalue no es un valor float.
+
+    Ejemplo:
+    >>> plot_pairplots(dataframe, target_col="target", columns=["feature1", "feature2"], pvalue=0.05)
+    """
+    # Comprobar si el dataframe es de tipo DataFrame de pandas
+    if not isinstance(df, pd.DataFrame):
+        print("Error: El argumento 'dataframe' no es un DataFrame de pandas.")
+        return None
+    
+    # Comprobar si la columna target_col está presente en el dataframe
+    if target_col not in df.columns:
+        print("Error: 'target_col' no es una columna válida del dataframe.")
+        return None
+    
+    # Comprobar si la lista de columnas a considerar es válida
+    if not all(col in df.columns for col in columns):
+        print("Error: Una o más columnas especificadas no están presentes en el dataframe.")
+        return None
+    
+    # Comprobar si la lista de columnas está vacía y si lo está, llenarla con las columnas numéricas
+    if not columns:
+        columns = df.select_dtypes(include=['float64', 'int64']).columns.tolist()
+    
+    # Comprobar si el valor de pvalue es válido
+    if not isinstance(pvalue, float):
+        print("Error: El argumento 'pvalue' debe ser un valor float.")
+        return None
+    
+    # Obtener las columnas numéricas significativas usando la función get_features_num_classification
+    significant_columns = get_features_num_classification(df, target_col, pvalue)
+    
+    # Filtrar las columnas de interés que sean significativas
+    significant_columns = [col for col in columns if col in significant_columns]
+    
+    # Dividir el dataframe por valores únicos de target_col si el número de valores posibles es mayor que 5
+    if len(df[target_col].unique()) > 5:
+        unique_values = df[target_col].unique()
+        num_plots = len(unique_values) // 5 + (1 if len(unique_values) % 5 != 0 else 0)
+        
+        for i in range(num_plots):
+            start_index = i * 5
+            end_index = min((i + 1) * 5, len(unique_values))
+            target_subset = unique_values[start_index:end_index]
+            
+            # Filtrar el DataFrame por los valores únicos de target_col
+            subset_df = df[df[target_col].isin(target_subset)]
+            
+            # Dividir las columnas significativas en grupos de máximo cinco columnas por pairplot
+            num_cols = len(significant_columns)
+            num_subplots = num_cols // 4 + (1 if num_cols % 4 != 0 else 0)
+            
+            for j in range(num_subplots):
+                start_col_index = j * 4
+                end_col_index = min((j + 1) * 4, num_cols)
+                subset_columns = significant_columns[start_col_index:end_col_index]
+                
+                # Asegurar que target_col esté presente en el pairplot
+                if target_col not in subset_columns:
+                    subset_columns.append(target_col)
+                
+                # Pintar el pairplot
+                sns.pairplot(subset_df, hue=target_col, vars=subset_columns)
+                plt.show()
+    else:
+        # Pintar el pairplot con todas las variables significativas
+        sns.pairplot(df, hue=target_col, vars=significant_columns)
+        plt.show()
+    
+    return significant_columns
 
