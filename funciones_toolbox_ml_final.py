@@ -5,10 +5,8 @@ import numpy as np
 from scipy import stats
 from scipy.stats import pearsonr, f_oneway
 from statsmodels.stats.proportion import proportions_ztest
-from sklearn.preprocessing import OrdinalEncoder, StandardScaler
-from sklearn.tree import DecisionTreeClassifier,DecisionTreeRegressor
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OrdinalEncoder, StandardScaler, LabelEncoder
+from sklearn.feature_selection import mutual_info_classif
 from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
 from sklearn.metrics import accuracy_score, precision_score, recall_score, classification_report, confusion_matrix, ConfusionMatrixDisplay
 
@@ -520,16 +518,13 @@ def get_features_num_classification(df, target_col, pvalue=0.05):
     if columnas_no_significativas:
         print("Las siguientes columnas no pasaron el test de significancia:")
         print(columnas_no_significativas)
-
-    else:
-        print("Todas las columnas pasaron el test de significancia.")
     
     print("\n Las siguientes columnas pasaron el test de significancia:")
 
     return columnas_significativas
        
 
-def plot_features_cat_classification(df, target_col="", columns=[], pvalue=0.05):
+def plot_features_num_classification(df, target_col="", columns=[], pvalue=0.05):
 
     """
     Genera pairplots para visualizar la relación entre variables numéricas en un DataFrame, 
@@ -631,3 +626,118 @@ def plot_features_cat_classification(df, target_col="", columns=[], pvalue=0.05)
     
     return significant_columns
 
+
+def get_features_cat_classification(dataframe, target_col, normalize=False, mi_threshold=0):
+    """
+    Devuelve una lista de características categóricas del dataframe que cumplen ciertos criterios de mutual information.
+
+    Argumentos:
+    - dataframe (DataFrame): El dataframe que contiene los datos.
+    - target_col (str): El nombre de la columna que actúa como el objetivo para un modelo de clasificación.
+    - normalize (bool, opcional): Indica si se debe normalizar el valor de la información mutua. Por defecto es False.
+    - mi_threshold (float, opcional): Umbral para la información mutua. Por defecto es 0.
+
+    Retorna:
+    - list: Una lista de columnas categóricas que cumplen los criterios establecidos por los parámetros.
+    """
+
+    # Comprobación de que 'target_col' hace referencia a una variable categórica del dataframe.
+    if target_col not in dataframe.columns:
+        print(f"Error: '{target_col}' no es una columna válida en el dataframe.")
+        return None
+    
+    if dataframe[target_col].dtype != 'object':
+        print(f"Error: '{target_col}' no es una variable categórica en el dataframe.")
+        return None
+
+    # Comprobación de valores de 'normalize' y 'mi_threshold'.
+    if not isinstance(normalize, bool):
+        print("Error: 'normalize' debe ser un booleano.")
+        return None
+
+    if not isinstance(mi_threshold, (int, float)):
+        print("Error: 'mi_threshold' debe ser un número.")
+        return None
+
+    if not 0 <= mi_threshold <= 1:
+        print("Error: 'mi_threshold' debe estar entre 0 y 1.")
+        return None
+
+    # Encoding de las características categóricas si no están en formato numérico.
+    encoder = OrdinalEncoder()
+    encoded_data = dataframe.copy()
+    encoded_data[dataframe.select_dtypes(include=['object']).columns] = encoder.fit_transform(dataframe.select_dtypes(include=['object']))
+
+    # Cálculo de la información mutua.
+    mi_scores = mutual_info_classif(encoded_data.drop(columns=[target_col]), encoded_data[target_col], discrete_features=True)
+
+    # Normalización si se especifica.
+    if normalize:
+        mi_scores_normalized = mi_scores / np.sum(mi_scores)
+        selected_features = encoded_data.drop(target_col, axis=1).columns[mi_scores_normalized >= mi_threshold].tolist()
+    else:
+        p = pd.DataFrame({"Features":encoded_data.drop(target_col, axis=1).columns, "resultados":mi_scores})
+        mask = p["resultados"] >= mi_threshold
+        selected_features = p[mask]["Features"].tolist()
+
+    return selected_features
+
+
+def plot_features_cat_classification(dataframe, target_col="", columns=[], mi_threshold=0.0, normalize=False):
+    """
+    1. Plot categorical features against classification target labels.
+
+    Sección de Argumentos:
+    - dataframe (DataFrame): El DataFrame que contiene los datos.
+    - target_col (str): Nombre de la columna que representa las etiquetas de clasificación. Por defecto, "".
+    - columns (list): Lista de nombres de columnas categóricas a considerar. Por defecto, [].
+    - mi_threshold (float): Umbral de información mutua para seleccionar características. Debe estar entre 0.0 y 1.0. Por defecto, 0.0.
+    - normalize (bool): Indica si se deben normalizar las características seleccionadas. Por defecto, False.
+
+    Sección de Retorna:
+    - None
+
+    """
+    # Verificar si la lista de columnas está vacía
+    if not columns:
+        # Seleccionar automáticamente las variables categóricas del DataFrame
+        cat_columns = dataframe.select_dtypes(include=['object']).columns.tolist()
+    else:
+        cat_columns = columns
+    
+    # Comprobar si el umbral de información mutua es válido
+    if mi_threshold < 0.0 or mi_threshold > 1.0:
+        raise ValueError("El umbral de información mutua debe estar entre 0.0 y 1.0")
+    
+    # Verificar si la columna objetivo está presente
+    if target_col != "":
+        if target_col not in dataframe.columns:
+            raise ValueError("La columna objetivo no está presente en el DataFrame")
+        
+    # Eliminar filas con valores nulos en las columnas categóricas
+    dataframe = dataframe.dropna(subset=cat_columns)
+    
+    # Codificar las variables categóricas a numéricas
+    encoder = LabelEncoder()
+    for col in cat_columns:
+        dataframe[col] = encoder.fit_transform(dataframe[col])
+    
+    # Calcular la información mutua entre las características categóricas y la columna objetivo
+    mi_scores = mutual_info_classif(dataframe[cat_columns], dataframe[target_col])
+    
+    # Seleccionar características basadas en el umbral de información mutua
+    selected_features = [col for col, mi_score in zip(cat_columns, mi_scores) if mi_score > mi_threshold]
+    
+    # Normalizar las características si se solicita
+    if normalize:
+        dataframe[selected_features] = dataframe[selected_features].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
+    
+    # Visualizar la distribución de etiquetas para cada característica seleccionada
+    for feature in selected_features:
+        plt.figure(figsize=(10, 6))
+        sns.countplot(x=feature, hue=target_col, data=dataframe)
+        plt.title(f"Distribución de etiquetas para {feature}")
+        plt.xlabel(feature)
+        plt.ylabel("Conteo")
+        plt.legend(title=target_col)
+        plt.show()
