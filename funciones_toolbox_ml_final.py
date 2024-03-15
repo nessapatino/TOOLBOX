@@ -458,8 +458,6 @@ def get_features_num_classification(df, target_col, pvalue=0.05):
     según el test de ANOVA, donde la columna es numérica y su ANOVA con la columna designada por "target_col"
     supera el test de hipótesis con una significancia mayor o igual a 1-pvalue.
     """
-    
-def get_features_num_classification(df, target_col, pvalue=0.05):
     # Comprobar si el dataframe es de tipo DataFrame de pandas
     if not isinstance(df, pd.DataFrame):
         print("Error: El argumento 'dataframe' no es un DataFrame de pandas.")
@@ -530,7 +528,6 @@ def get_features_num_classification(df, target_col, pvalue=0.05):
 
     return columnas_significativas
        
-    
 
 def plot_features_cat_classification(df, target_col="", columns=[], pvalue=0.05):
 
